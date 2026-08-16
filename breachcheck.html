@@ -1,0 +1,319 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<title>BreachCheck 🔐</title>
+<style>
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    min-height: 100vh;
+    background: radial-gradient(circle at 20% 20%, #0d1f1c 0%, #060a0a 60%);
+    font-family: 'Segoe UI', sans-serif;
+    color: #e8f5f0;
+    display: flex;
+    justify-content: center;
+    padding: 40px 16px;
+  }
+  .card {
+    width: 100%;
+    max-width: 560px;
+  }
+  h1 {
+    font-size: 26px;
+    margin: 0 0 4px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .subtitle {
+    opacity: 0.65;
+    font-size: 14px;
+    margin-bottom: 28px;
+  }
+  .panel {
+    background: rgba(255,255,255,0.04);
+    border: 1px solid rgba(120, 255, 210, 0.15);
+    border-radius: 14px;
+    padding: 20px;
+    margin-bottom: 18px;
+  }
+  label { font-size: 13px; opacity: 0.75; }
+  .pw-row {
+    display: flex;
+    gap: 8px;
+    margin-top: 8px;
+  }
+  input[type="text"], input[type="password"] {
+    flex: 1;
+    padding: 12px 14px;
+    border-radius: 10px;
+    border: 1px solid rgba(120,255,210,0.25);
+    background: rgba(0,0,0,0.3);
+    color: #e8f5f0;
+    font-size: 15px;
+    outline: none;
+  }
+  input:focus { border-color: #5eead4; }
+  button {
+    border: none;
+    border-radius: 10px;
+    padding: 12px 16px;
+    font-size: 14px;
+    cursor: pointer;
+    font-weight: 600;
+  }
+  #toggleVis { background: rgba(255,255,255,0.1); color: #e8f5f0; }
+  #checkBtn {
+    width: 100%;
+    margin-top: 14px;
+    background: linear-gradient(135deg, #34d399, #14b8a6);
+    color: #04231c;
+    font-size: 15px;
+    padding: 13px;
+  }
+  #checkBtn:disabled { opacity: 0.5; cursor: not-allowed; }
+
+  .meter-bar {
+    height: 8px;
+    border-radius: 6px;
+    background: rgba(255,255,255,0.08);
+    margin-top: 12px;
+    overflow: hidden;
+  }
+  .meter-fill { height: 100%; width: 0%; transition: width 0.25s ease, background 0.25s ease; }
+  .strength-label { font-size: 13px; margin-top: 8px; font-weight: 600; }
+
+  .checklist { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; }
+  .chip {
+    font-size: 12px;
+    padding: 5px 10px;
+    border-radius: 20px;
+    background: rgba(255,255,255,0.06);
+    opacity: 0.5;
+  }
+  .chip.on { opacity: 1; background: rgba(52, 211, 153, 0.18); color: #6ee7b7; }
+
+  .hash-row { font-family: 'Consolas', monospace; font-size: 12.5px; word-break: break-all; margin-top: 6px; line-height: 1.6; }
+  .sent { color: #f87171; font-weight: 700; }
+  .kept { color: #6ee7b7; }
+
+  #result { margin-top: 14px; font-size: 14px; line-height: 1.5; min-height: 20px; }
+  .result-bad { color: #f87171; font-weight: 600; }
+  .result-good { color: #6ee7b7; font-weight: 600; }
+  .small { font-size: 12px; opacity: 0.6; margin-top: 6px; }
+
+  details summary { cursor: pointer; font-size: 13px; opacity: 0.75; }
+  details[open] summary { margin-bottom: 8px; }
+</style>
+</head>
+<body>
+<div class="card">
+  <h1>🔐 BreachCheck</h1>
+  <div class="subtitle">Checks password strength and known breach exposure — your real password never leaves this browser tab.</div>
+
+  <div class="panel">
+    <label for="pw">Your password</label>
+    <div class="pw-row">
+      <input type="password" id="pw" placeholder="Type a password to test..." autocomplete="off" />
+      <button id="toggleVis">Show</button>
+    </div>
+
+    <div class="meter-bar"><div class="meter-fill" id="meterFill"></div></div>
+    <div class="strength-label" id="strengthLabel">Start typing to see strength</div>
+
+    <div class="checklist">
+      <div class="chip" id="chip-len">8+ characters</div>
+      <div class="chip" id="chip-upper">Uppercase</div>
+      <div class="chip" id="chip-lower">Lowercase</div>
+      <div class="chip" id="chip-num">Number</div>
+      <div class="chip" id="chip-sym">Symbol</div>
+      <div class="chip" id="chip-common">Not a common password</div>
+    </div>
+
+    <button id="checkBtn" disabled>Check for known breaches</button>
+    <div id="result"></div>
+  </div>
+
+  <div class="panel">
+    <details>
+      <summary>How this stays private (see it happen live) 👁</summary>
+      <div class="hash-row">
+        Full SHA-1 fingerprint (computed on YOUR device):<br>
+        <span id="fullHash">—</span>
+      </div>
+      <div class="hash-row">
+        <span class="sent">First 5 chars sent to the breach database:</span> <span id="prefixHash">—</span>
+      </div>
+      <div class="hash-row">
+        <span class="kept">Remaining 35 chars — stays on your device, checked locally:</span><br>
+        <span id="suffixHash">—</span>
+      </div>
+      <div class="small">The server only ever sees the red part. It sends back every hash that starts with those 5 characters, and your browser checks the green part for a match — entirely on your machine.</div>
+    </details>
+  </div>
+</div>
+
+<script>
+  const pwInput = document.getElementById('pw');
+  const toggleVis = document.getElementById('toggleVis');
+  const meterFill = document.getElementById('meterFill');
+  const strengthLabel = document.getElementById('strengthLabel');
+  const checkBtn = document.getElementById('checkBtn');
+  const resultEl = document.getElementById('result');
+  const fullHashEl = document.getElementById('fullHash');
+  const prefixHashEl = document.getElementById('prefixHash');
+  const suffixHashEl = document.getElementById('suffixHash');
+
+  toggleVis.addEventListener('click', () => {
+    const isPw = pwInput.type === 'password';
+    pwInput.type = isPw ? 'text' : 'password';
+    toggleVis.textContent = isPw ? 'Hide' : 'Show';
+  });
+
+  // A short list of extremely common passwords / patterns real breach
+  // datasets show up constantly — these tank the score hard regardless
+  // of length, because attackers try these FIRST.
+  const COMMON_PASSWORDS = [
+    'password', 'password123', '123456', '123456789', 'qwerty', 'letmein',
+    'welcome', 'admin', 'iloveyou', 'monkey', 'dragon', 'football',
+    'abc123', '111111', '123123', 'qwertyuiop', 'passw0rd', 'trustno1'
+  ];
+
+  function hasSequential(pw) {
+    const seqs = ['abcdefgh', '01234567', '12345678', 'qwertyui'];
+    const lower = pw.toLowerCase();
+    return seqs.some(s => lower.includes(s.slice(0, 5)));
+  }
+
+  // Rough entropy-based scoring: how big is the "guessing space" an
+  // attacker would have to search, in bits. More character variety and
+  // length both grow this space, but known-common passwords get
+  // penalized hard since they're not actually "guessed" — they're just
+  // looked up first.
+  function scorePassword(pw) {
+    if (!pw) return { score: 0, bits: 0 };
+
+    let charsetSize = 0;
+    const hasLower = /[a-z]/.test(pw);
+    const hasUpper = /[A-Z]/.test(pw);
+    const hasNum = /[0-9]/.test(pw);
+    const hasSym = /[^a-zA-Z0-9]/.test(pw);
+    if (hasLower) charsetSize += 26;
+    if (hasUpper) charsetSize += 26;
+    if (hasNum) charsetSize += 10;
+    if (hasSym) charsetSize += 32;
+    if (charsetSize === 0) charsetSize = 1;
+
+    let bits = pw.length * Math.log2(charsetSize);
+
+    const isCommon = COMMON_PASSWORDS.includes(pw.toLowerCase());
+    if (isCommon) bits = Math.min(bits, 8); // treat as trivially guessable
+    if (hasSequential(pw)) bits *= 0.5;
+    if (/^(.)\1+$/.test(pw)) bits = Math.min(bits, 6); // aaaaaaaa etc.
+
+    let score;
+    if (bits < 28) score = 15;
+    else if (bits < 36) score = 35;
+    else if (bits < 60) score = 60;
+    else if (bits < 80) score = 82;
+    else score = 100;
+
+    return { score, bits, hasLower, hasUpper, hasNum, hasSym, isCommon };
+  }
+
+  function setChip(id, on) {
+    document.getElementById(id).classList.toggle('on', on);
+  }
+
+  function updateStrength() {
+    const pw = pwInput.value;
+    const { score, bits, hasLower, hasUpper, hasNum, hasSym, isCommon } = scorePassword(pw);
+
+    meterFill.style.width = score + '%';
+    meterFill.style.background =
+      score < 30 ? '#f87171' :
+      score < 55 ? '#fb923c' :
+      score < 80 ? '#fbbf24' : '#34d399';
+
+    if (!pw) {
+      strengthLabel.textContent = 'Start typing to see strength';
+    } else {
+      const label = score < 30 ? 'Very weak' : score < 55 ? 'Weak' : score < 80 ? 'Decent' : 'Strong';
+      strengthLabel.textContent = `${label} — roughly ${Math.round(bits)} bits of entropy`;
+    }
+
+    setChip('chip-len', pw.length >= 8);
+    setChip('chip-upper', !!hasUpper);
+    setChip('chip-lower', !!hasLower);
+    setChip('chip-num', !!hasNum);
+    setChip('chip-sym', !!hasSym);
+    setChip('chip-common', pw.length > 0 && !isCommon);
+
+    checkBtn.disabled = pw.length === 0;
+  }
+
+  pwInput.addEventListener('input', () => {
+    updateStrength();
+    resultEl.innerHTML = '';
+    fullHashEl.textContent = '—';
+    prefixHashEl.textContent = '—';
+    suffixHashEl.textContent = '—';
+  });
+
+  // Turns text into its SHA-1 fingerprint using the browser's built-in
+  // crypto engine — nothing leaves the device for this step.
+  async function sha1Hex(text) {
+    const enc = new TextEncoder().encode(text);
+    const hashBuffer = await crypto.subtle.digest('SHA-1', enc);
+    const bytes = Array.from(new Uint8Array(hashBuffer));
+    return bytes.map(b => b.toString(16).padStart(2, '0')).join('').toUpperCase();
+  }
+
+  checkBtn.addEventListener('click', async () => {
+    const pw = pwInput.value;
+    if (!pw) return;
+
+    checkBtn.disabled = true;
+    checkBtn.textContent = 'Checking...';
+    resultEl.innerHTML = '';
+
+    try {
+      const fullHash = await sha1Hex(pw);
+      const prefix = fullHash.slice(0, 5);
+      const suffix = fullHash.slice(5);
+
+      fullHashEl.textContent = fullHash;
+      prefixHashEl.textContent = prefix;
+      suffixHashEl.textContent = suffix;
+
+      // Only the 5-character prefix goes out over the network — this is
+      // the entire k-anonymity trick in one line of code.
+      const res = await fetch(`https://api.pwnedpasswords.com/range/${prefix}`);
+      if (!res.ok) throw new Error('API request failed');
+      const text = await res.text();
+
+      const lines = text.split('\n');
+      let matchCount = 0;
+      for (const line of lines) {
+        const [lineSuffix, count] = line.trim().split(':');
+        if (lineSuffix === suffix) { matchCount = parseInt(count, 10); break; }
+      }
+
+      if (matchCount > 0) {
+        resultEl.innerHTML = `<span class="result-bad">⚠ Found in ${matchCount.toLocaleString()} known breaches.</span><div class="small">This exact password has leaked before. Don't use it anywhere, even if it looks "strong" above — breach exposure matters more than complexity.</div>`;
+      } else {
+        resultEl.innerHTML = `<span class="result-good">✓ Not found in known breaches.</span><div class="small">Not seen in this database — that's a good sign, but still aim for high strength above, since not-yet-breached isn't the same as unguessable.</div>`;
+      }
+    } catch (err) {
+      resultEl.innerHTML = `<span class="result-bad">Something went wrong reaching the breach database: ${err.message}</span>`;
+    } finally {
+      checkBtn.disabled = false;
+      checkBtn.textContent = 'Check for known breaches';
+    }
+  });
+
+  updateStrength();
+</script>
+</body>
+</html>

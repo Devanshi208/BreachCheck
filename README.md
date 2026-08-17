@@ -23,4 +23,4 @@ Web Crypto API (SHA-1 hashing)
 Have I Been Pwned Pwned Passwords API
 
 👤 Author
-Devanshi - GitHub Profile
+Devanshi: https://github.com/Devanshi208

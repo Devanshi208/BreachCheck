@@ -4,7 +4,7 @@ BreachCheck is a browser based security tool that checks whether a password is s
 
 🚀 Live Demo
 
-See it in action here: Try BreachCheck Live
+See it in action here:  https://devanshi208.github.io/BreachCheck/
 
 ✨ Features
 Live Strength Meter: Real entropy-based scoring (measured in bits), not a fake progress bar, penalizes common passwords and keyboard-walk patterns, rewards length and character variety.
